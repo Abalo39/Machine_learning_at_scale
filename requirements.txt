@@ -1,1 +1,14 @@
+# Essential Mathematics
+numpy>=1.21.0
 
+# Visualization and PDF Generation
+matplotlib>=3.4.0
+
+# Data Loading and Management
+pandas>=1.3.0
+
+# Progress Tracking
+tqdm>=4.62.0
+
+# Data Fetching
+gdown>=4.4.0
