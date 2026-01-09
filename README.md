@@ -10,7 +10,7 @@ The objective of this project is to architect a scalable system capable of predi
 
 ### Key Technical Achievements
 
-- **Scale**: Optimized to handle millions of ratings across thousands of users and movies.
+- **Scale**: Optimized to handle 20,000,263 ratings across 200,948 users and 84,432 movies.
 - **Performance**: Achieved a final Test RMSE of **~0.875** using Latent Factor Models.
 - **Innovation**: Captured non-linear user-item interactions through Deep Learning and visualized embedding spaces.
 
@@ -21,12 +21,15 @@ The objective of this project is to architect a scalable system capable of predi
 Before modeling, we characterize the dataset properties to identify critical system constraints.
 
 ### 1. Power-Law Distributions
+Both user activity and movie popularity follow pronounced scale-free characteristics. The probability $P(x)$ that a movie has $x$ ratings follows the Power-Law formula:
+$$P(x) \propto x^{-\alpha}$$
+Visualized through Log-Log Probability Density Functions (PDF), the linear relationship confirms that a small minority of "blockbuster" movies and "power users" dominate the interaction matrix:
+$$\log(P(x)) = -\alpha \log(x) + C$$
 
-Both user activity and movie popularity follow pronounced scale-free characteristics. Visualized through Log-Log Probability Density Functions (PDF), the linear relationship confirms that a small minority of "blockbuster" movies and "power users" dominate the interaction matrix.
+
 
 ### 2. Rating Density & Bias
-
-The dataset shows a distinct positive bias, with the most prevalent ratings occurring between **3.0 and 4.0**. The system must account for this global shift to avoid skewed predictions.
+The dataset density is extremely low ($\approx 0.118\%$). The dataset shows a distinct positive bias, with the most prevalent ratings occurring between **3.0 and 4.0**.
 
 ---
 
@@ -35,35 +38,46 @@ The dataset shows a distinct positive bias, with the most prevalent ratings occu
 We model user preferences by decomposing the sparse rating matrix into low-rank latent factors.
 
 ### Mathematical Formulation
-
-The predicted rating for user $u$ and item $i$ is calculated as:
-
+The predicted rating for user $u$ and item $i$ is calculated by combining global, user, and item effects with latent interactions:
+$$\hat{r}_{ui} = \mu + b_u + b_i + q_i^T p_u$$
+*Where $\mu$ is the global mean, $b_u$ and $b_i$ are biases, and $q_i^T p_u$ is the dot product of user and item latent vectors.*
 
 
 
 ### Optimization
+We minimize the regularized squared error (Loss Function) to prevent overfitting:
+$$\min_{b, p, q} \sum_{(u,i) \in \mathcal{K}} (r_{ui} - \hat{r}_{ui})^2 + \lambda (\|q_i\|^2 + \|p_u\|^2 + b_u^2 + b_i^2)$$
 
-We minimize the regularized squared error using **Alternating Least Squares (ALS)**. Our implementation achieved rapid convergence within **15 iterations**, stabilizing at:
+Using **Alternating Least Squares (ALS)**, we solve for the optimal user vector $p_u$ analytically by fixing all item vectors $q_i$:
+$$p_u = \left( \sum_{i \in \mathcal{I}_u} q_i q_i^T + \lambda I \right)^{-1} \sum_{i \in \mathcal{I}_u} (r_{ui} - \mu - b_u - b_i)q_i$$
 
-- Training RMSE: ~0.835
-- Test RMSE: ~0.875
+Our implementation stabilized at:
+- **Training RMSE**: ~0.835
+- **Test RMSE**: ~0.875
+$$RMSE = \sqrt{\frac{1}{|\mathcal{K}|} \sum_{(u,i) \in \mathcal{K}} (r_{ui} - \hat{r}_{ui})^2}$$
+
+
 
 ---
 
 ## Phase 3: Neural Collaborative Filtering (NCF)
 
-To overcome the limitations of linear dot products, we implemented a Deep Learning architecture. This model utilizes embedding layers followed by multi-layered perceptrons (MLP) to learn complex, non-linear relationships between users and items.
+To overcome the limitations of linear dot products, we implemented a Deep Learning architecture. The linear interaction is replaced by a Multi-Layer Perceptron (MLP) function $f$ with parameters $\Theta$:
+$$\hat{r}_{ui} = f_{MLP}(p_u, q_i \mid \Theta)$$
+
+
 
 ---
 
 ## Phase 4: Personalized Ranking & Top-N
 
-Moving beyond pointwise error (RMSE), we optimized the system for **Ranking**. The model scores candidate movies to generate a personalized Top-10 list for specific user personas.
+Moving beyond pointwise error (RMSE), we optimized for **Ranking** using the Bayesian Personalized Ranking (BPR) logic to maximize the probability that a user prefers an observed item $i$ over an unobserved item $j$:
+$$\mathcal{L}_{BPR} = \sum_{(u,i,j) \in \mathcal{D}} \ln \sigma(\hat{r}_{ui} - \hat{r}_{uj}) - \lambda_\Theta \|\Theta\|^2$$
+
+We evaluate these rankings using **Normalized Discounted Cumulative Gain (NDCG)**:
+$$NDCG_k = \frac{DCG_k}{IDCG_k}, \quad DCG_k = \sum_{i=1}^k \frac{2^{rel_i} - 1}{\log_2(i+1)}$$
 
 ### Case Study: Recommendations for a LOTR Fan
-
-The model successfully identified high-relevance items for a user interested in the *Lord of the Rings* franchise:
-
 | Rank | Movie ID | Predicted Score |
 |------|----------|-----------------|
 | 1    | 75744    | 2.2319          |
@@ -74,7 +88,12 @@ The model successfully identified high-relevance items for a user interested in 
 
 ## Phase 5: Latent Semantic Visualization
 
-The final stage validates the model's semantic "understanding" of the catalog. By projecting high-dimensional genre embeddings into 2D space, we observe clear clustering of semantically similar categories (e.g., Sci-Fi and Fantasy).
+The final stage validates the model's semantic "understanding." We calculate the semantic center (centroid) of a genre $G$ by averaging latent vectors:
+$$\theta_G = \frac{1}{|G|} \sum_{i \in G} q_i$$
+
+By projecting these high-dimensional genre embeddings into 2D space, we observe clear clustering of semantically similar categories (e.g., Sci-Fi and Fantasy).
+
+
 
 ---
 
@@ -90,8 +109,6 @@ The final stage validates the model's semantic "understanding" of the catalog. B
 
 ## Datasets Used
 
-This project utilizes the following datasets:
-
 - **MovieLens 20M Dataset**: [Download here](https://grouplens.org/datasets/movielens/20m/)
 - **MovieLens Latest Small Dataset**: [Download here](https://grouplens.org/datasets/movielens/latest/)
 
@@ -100,6 +117,5 @@ This project utilizes the following datasets:
 ## Usage
 
 1. **Clone the repo**
-
 ```bash
-git clone https://github.com/Abalo39/Machine_learning_at_scale.git
+git clone [https://github.com/Abalo39/Machine_learning_at_scale.git](https://github.com/Abalo39/Machine_learning_at_scale.git)
